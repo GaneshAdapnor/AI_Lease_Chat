@@ -1,6 +1,13 @@
 import streamlit as st
 import tempfile
 import os
+from dotenv import load_dotenv
+
+# Load secrets: Streamlit Cloud uses st.secrets, local dev uses .env
+load_dotenv()
+if "OPENAI_API_KEY" in st.secrets:
+    os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
+
 from document_processor import extract_text_from_pdf, extract_pages_from_pdf, get_document_chunks
 from extractor import extract_lease_summary
 from chat_engine import ChatEngine
