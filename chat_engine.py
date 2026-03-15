@@ -1,4 +1,5 @@
 import os
+import time
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
@@ -6,23 +7,35 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BATCH_SIZE = 20      # chunks per embedding API call
+BATCH_DELAY = 1.0    # seconds between batches
+
 class ChatEngine:
     def __init__(self):
-        self.embeddings = OpenAIEmbeddings()
+        self.embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
         self.vector_store = None
         self.retriever = None
-        self.qa_chain = None
         self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
 
     def ingest_documents(self, chunks):
         """
-        Ingests the chunked documents into a FAISS vector store.
+        Ingests chunked documents into a FAISS vector store in small batches
+        to avoid hitting OpenAI rate limits.
         """
         documents = [
             Document(page_content=chunk["text"], metadata=chunk["metadata"])
             for chunk in chunks
         ]
-        self.vector_store = FAISS.from_documents(documents, self.embeddings)
+
+        # Process first batch to create the vector store
+        self.vector_store = FAISS.from_documents(documents[:BATCH_SIZE], self.embeddings)
+
+        # Add remaining batches with a small delay between each
+        for i in range(BATCH_SIZE, len(documents), BATCH_SIZE):
+            time.sleep(BATCH_DELAY)
+            batch = documents[i:i + BATCH_SIZE]
+            self.vector_store.add_documents(batch)
+
         self.retriever = self.vector_store.as_retriever(search_kwargs={"k": 4})
 
     def ask(self, query: str):
